@@ -16,7 +16,7 @@ import (
 // FetchCreators fetch Creator list
 func (k *Kemono) FetchCreators() (creators []Creator, err error) {
 	k.log.Print("fetching creator list...")
-	url := fmt.Sprintf("https://%s.su/api/v1/creators", k.Site)
+	url := fmt.Sprintf("https://%s.cr/api/v1/creators", k.Site)
 	resp, err := k.Downloader.Get(url)
 	if err != nil {
 		return nil, fmt.Errorf("fetch creator list error: %s", err)
@@ -40,7 +40,7 @@ func (k *Kemono) FetchCreators() (creators []Creator, err error) {
 
 // FetchPosts fetch post list
 func (k *Kemono) FetchPosts(service, id string) (posts []Post, err error) {
-	url := fmt.Sprintf("https://%s.su/api/v1/%s/user/%s", k.Site, service, id)
+	url := fmt.Sprintf("https://%s.cr/api/v1/%s/user/%s", k.Site, service, id)
 	perUnit := 50
 	fetch := func(page int) (err error, finish bool) {
 		k.log.Printf("fetching post list page %d...", page)

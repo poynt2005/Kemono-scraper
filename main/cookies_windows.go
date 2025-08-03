@@ -34,7 +34,7 @@ func getCookies(s string) []*http.Cookie {
 	}
 	cs := c.GetCookies()
 	for _, v := range cs {
-		if v.Domain == fmt.Sprintf("%s.su", s) || v.Domain == fmt.Sprintf(".%s.su", s) {
+		if v.Domain == fmt.Sprintf("%s.cr", s) || v.Domain == fmt.Sprintf(".%s.cr", s) {
 			cookies = append(cookies, v)
 		}
 	}
