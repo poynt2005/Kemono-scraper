@@ -404,7 +404,7 @@ func main() {
 		k = true
 		options[Kemono] = append(options[Kemono], sharedOptions...)
 		options[Kemono] = append(options[Kemono], kemono.WithDomain("kemono"))
-		downloaderOptions = append(downloaderOptions, downloader.BaseURL("https://kemono.su"))
+		downloaderOptions = append(downloaderOptions, downloader.BaseURL("https://kemono.cr"))
 		token, err := utils.GenerateToken(16)
 		if err != nil {
 			log.Fatalf("generate token failed: %s", err)
@@ -414,14 +414,14 @@ func main() {
 				Name:   "__ddg2",
 				Value:  token,
 				Path:   "/",
-				Domain: ".kemono.su",
+				Domain: ".kemono.cr",
 				Secure: false,
 			},
 		}))
 		downloaderOptions = append(downloaderOptions, downloader.WithHeader(downloader.Header{
-			"Host":                      "kemono.su",
+			"Host":                      "kemono.cr",
 			"User-Agent":                downloader.UserAgent,
-			"Referer":                   "https://kemono.su",
+			"Referer":                   "https://kemono.cr",
 			"Accept":                    downloader.Accept,
 			"Accept-Language":           downloader.AcceptLanguage,
 			"Accept-Encoding":           downloader.AcceptEncoding,
