@@ -22,7 +22,7 @@ const (
 	maxConnection           = 100
 	rateLimit               = 2
 	UserAgent               = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
-	Accept                  = "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7"
+	Accept                  = "text/css,text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7"
 	AcceptEncoding          = "gzip, deflate, br"
 	AcceptLanguage          = "en-US,en;q=0.9,zh-CN;q=0.8,zh;q=0.7"
 	SecChUA                 = "\"Google Chrome\";v=\"111\", \"Not(A:Brand\";v=\"8\", \"Chromium\";v=\"111\""

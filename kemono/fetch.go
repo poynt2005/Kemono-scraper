@@ -14,9 +14,9 @@ import (
 )
 
 // FetchCreators fetch Creator list
-func (k *Kemono) FetchCreators() (creators []Creator, err error) {
+func (k *Kemono) FetchCreators(host string) (creators []Creator, err error) {
 	k.log.Print("fetching creator list...")
-	url := fmt.Sprintf("https://%s.cr/api/v1/creators", k.Site)
+	url := fmt.Sprintf("https://%s/api/v1/creators", host)
 	resp, err := k.Downloader.Get(url)
 	if err != nil {
 		return nil, fmt.Errorf("fetch creator list error: %s", err)
@@ -39,69 +39,104 @@ func (k *Kemono) FetchCreators() (creators []Creator, err error) {
 }
 
 // FetchPosts fetch post list
-func (k *Kemono) FetchPosts(service, id string) (posts []Post, err error) {
-	url := fmt.Sprintf("https://%s.cr/api/v1/%s/user/%s", k.Site, service, id)
-	perUnit := 50
-	fetch := func(page int) (err error, finish bool) {
-		k.log.Printf("fetching post list page %d...", page)
-		purl := fmt.Sprintf("%s?o=%d", url, page*perUnit)
+func (k *Kemono) FetchPosts(service, id string, host string) (posts []Post, err error) {
+        url := fmt.Sprintf("https://%s/api/v1/%s/user/%s/posts", host, service, id)
+        perUnit := 50
+        fetch := func(page int, max_num_posts int) (err error, finish bool) {
+	        k.log.Printf("fetching post list page %d...", page)
+                purl := url
 
-		retryCount := 0
-		for retryCount < k.retry {
-			resp, err := k.Downloader.Get(purl)
-			if err != nil {
-				k.log.Printf("fetch post list error: %v", err)
-				time.Sleep(k.retryInterval)
-				retryCount++
-				continue
-			}
+	        if page != 0 {
+		   purl = fmt.Sprintf("%s?o=%d", url, page*perUnit)
+                }
+                k.log.Printf("purl: %s", purl)
 
-			if resp.StatusCode != http.StatusOK {
-				k.log.Printf("fetch post list error: %s", resp.Status)
-				time.Sleep(k.retryInterval)
-				retryCount++
-				continue
-			}
+                retryCount := 0
+                for retryCount < k.retry {
+		        resp, err := k.Downloader.Get(purl)
+                        if err != nil {
+			        k.log.Printf("fetch post list error1: %v", err)
+			        time.Sleep(k.retryInterval)
+			        retryCount++
+			        continue
+		        }
 
-			reader, err := handleCompressedHTTPResponse(resp)
-			if err != nil {
-				return err, false
-			}
+		        if resp.StatusCode != http.StatusOK {
+			        k.log.Printf("fetch post list error2: %s", resp.Status)
+			        k.log.Printf("resp: %s", resp)
+			        time.Sleep(k.retryInterval)
+			        retryCount++
+			        continue
+		        }
 
-			data, err := ioutil.ReadAll(reader)
-			if err != nil {
-				return fmt.Errorf("fetch post list error: %s", err), false
-			}
-			reader.Close()
+		        reader, err := handleCompressedHTTPResponse(resp)
+		        if err != nil {
+			        return err, false
+		        }
 
-			var pr []PostRaw
-			err = json.Unmarshal(data, &pr)
-			if err != nil {
-				return fmt.Errorf("unmarshal post list error: %s", err), false
-			}
-			if len(pr) == 0 {
-				// final page
-				return nil, true
-			}
-			for _, p := range pr {
-				posts = append(posts, p.ParasTime())
-			}
-			return nil, false
-		}
+		        data, err := ioutil.ReadAll(reader)
+		        if err != nil {
+			        return fmt.Errorf("fetch post list error3: %s", err), false
+		        }
+		        reader.Close()
 
-		return fmt.Errorf("fetch post list error: maximum retry count exceeded"), false
-	}
+		        var pr []PostRaw
+		        err = json.Unmarshal(data, &pr)
+		        if err != nil {
+			        return fmt.Errorf("unmarshal post list error4: %s", err), false
+		        }
+		        for _, p := range pr {
+			        posts = append(posts, p.ParasTime())
+		        }
+		        if len(pr) == 0 || max_num_posts <= (page+1)*perUnit {
+			        // final page
+			        return nil, true
+		        }
+		        return nil, false
+	        }
 
-	for i := 0; ; i++ {
-		err, finish := fetch(i)
-		if err != nil {
-			return nil, err
-		}
-		if finish {
-			break
-		}
-	}
-	return
+	        return fmt.Errorf("fetch post list error: maximum retry count exceeded"), false
+        }
+
+        for i := 0; ; i++ {
+	        url := fmt.Sprintf("https://%s/api/v1/%s/user/%s/profile", host, service, id)
+	        resp, err := k.Downloader.Get(url)
+	        if err != nil {
+		        return nil, fmt.Errorf("fetch post list error getting number of posts 1: %s", err)
+	        }
+
+	        if resp.StatusCode != http.StatusOK {
+		        return nil, fmt.Errorf("fetch post list error getting number of posts 2: %s", err)
+	        }
+
+	        reader, err := handleCompressedHTTPResponse(resp)
+	        if err != nil {
+		        return nil, fmt.Errorf("fetch post list error getting number of posts 3: %s", err)
+	        }
+
+	        data, err := ioutil.ReadAll(reader)
+	        if err != nil {
+		        return nil, fmt.Errorf("fetch post list error getting number of posts 4: %s", err)
+	        }
+                reader.Close()
+
+                var jsonresult map[string]any
+                json.Unmarshal(data, &jsonresult)
+                post_count_float, ok := jsonresult["post_count"].(float64)
+                if !ok {
+                        return nil, fmt.Errorf("fetch post list error getting post_count")
+                }
+                max_num_posts := int(post_count_float)
+
+	        err, finish := fetch(i, max_num_posts)
+	        if err != nil {
+		        return nil, err
+	        }
+	        if finish {
+		        break
+	        }
+        }
+        return
 }
 
 // DownloadPosts download posts

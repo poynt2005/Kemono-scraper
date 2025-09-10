@@ -217,11 +217,11 @@ func WithUserAttachmentFilter(creator Creator, filter ...AttachmentFilter) Optio
 }
 
 // Start fetch and download
-func (k *Kemono) Start() error {
+func (k *Kemono) Start(host string) error {
 	// initialize the creators
 	if len(k.creators) == 0 {
 		// fetch creators from kemono
-		cs, err := k.FetchCreators()
+                cs, err := k.FetchCreators(host)
 		if err != nil {
 			return err
 		}
@@ -251,11 +251,13 @@ func (k *Kemono) Start() error {
 	k.log.Printf("Start download %d creators", len(k.users))
 	for _, creator := range k.users {
 		// fetch posts
-		posts, err := k.FetchPosts(creator.Service, creator.Id)
+                k.log.Printf("Fetching posts")
+		posts, err := k.FetchPosts(creator.Service, creator.Id, host)
 		if err != nil {
 			return err
 		}
 		// filter posts
+                k.log.Printf("Filter posts")
 		posts = k.FilterPosts(posts)
 
 		// filter attachments

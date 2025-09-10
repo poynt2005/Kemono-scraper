@@ -1,0 +1,253 @@
+diff --git a/downloader/downloader.go b/downloader/downloader.go
+index 019e44e..e04e0ce 100644
+--- a/downloader/downloader.go
++++ b/downloader/downloader.go
+@@ -22,7 +22,7 @@ const (
+ 	maxConnection           = 100
+ 	rateLimit               = 2
+ 	UserAgent               = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+-	Accept                  = "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7"
++	Accept                  = "text/css,text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7"
+ 	AcceptEncoding          = "gzip, deflate, br"
+ 	AcceptLanguage          = "en-US,en;q=0.9,zh-CN;q=0.8,zh;q=0.7"
+ 	SecChUA                 = "\"Google Chrome\";v=\"111\", \"Not(A:Brand\";v=\"8\", \"Chromium\";v=\"111\""
+diff --git a/kemono/fetch.go b/kemono/fetch.go
+index f928e09..4fe3d51 100644
+--- a/kemono/fetch.go
++++ b/kemono/fetch.go
+@@ -14,9 +14,9 @@ import (
+ )
+ 
+ // FetchCreators fetch Creator list
+-func (k *Kemono) FetchCreators() (creators []Creator, err error) {
++func (k *Kemono) FetchCreators(host string) (creators []Creator, err error) {
+ 	k.log.Print("fetching creator list...")
+-	url := fmt.Sprintf("https://%s.su/api/v1/creators", k.Site)
++	url := fmt.Sprintf("https://%s/api/v1/creators", host)
+ 	resp, err := k.Downloader.Get(url)
+ 	if err != nil {
+ 		return nil, fmt.Errorf("fetch creator list error: %s", err)
+@@ -39,69 +39,104 @@ func (k *Kemono) FetchCreators() (creators []Creator, err error) {
+ }
+ 
+ // FetchPosts fetch post list
+-func (k *Kemono) FetchPosts(service, id string) (posts []Post, err error) {
+-	url := fmt.Sprintf("https://%s.su/api/v1/%s/user/%s", k.Site, service, id)
+-	perUnit := 50
+-	fetch := func(page int) (err error, finish bool) {
+-		k.log.Printf("fetching post list page %d...", page)
+-		purl := fmt.Sprintf("%s?o=%d", url, page*perUnit)
+-
+-		retryCount := 0
+-		for retryCount < k.retry {
+-			resp, err := k.Downloader.Get(purl)
+-			if err != nil {
+-				k.log.Printf("fetch post list error: %v", err)
+-				time.Sleep(k.retryInterval)
+-				retryCount++
+-				continue
+-			}
+-
+-			if resp.StatusCode != http.StatusOK {
+-				k.log.Printf("fetch post list error: %s", resp.Status)
+-				time.Sleep(k.retryInterval)
+-				retryCount++
+-				continue
+-			}
+-
+-			reader, err := handleCompressedHTTPResponse(resp)
+-			if err != nil {
+-				return err, false
+-			}
+-
+-			data, err := ioutil.ReadAll(reader)
+-			if err != nil {
+-				return fmt.Errorf("fetch post list error: %s", err), false
+-			}
+-			reader.Close()
+-
+-			var pr []PostRaw
+-			err = json.Unmarshal(data, &pr)
+-			if err != nil {
+-				return fmt.Errorf("unmarshal post list error: %s", err), false
+-			}
+-			if len(pr) == 0 {
+-				// final page
+-				return nil, true
+-			}
+-			for _, p := range pr {
+-				posts = append(posts, p.ParasTime())
+-			}
+-			return nil, false
+-		}
+-
+-		return fmt.Errorf("fetch post list error: maximum retry count exceeded"), false
+-	}
+-
+-	for i := 0; ; i++ {
+-		err, finish := fetch(i)
+-		if err != nil {
+-			return nil, err
+-		}
+-		if finish {
+-			break
+-		}
+-	}
+-	return
++func (k *Kemono) FetchPosts(service, id string, host string) (posts []Post, err error) {
++        url := fmt.Sprintf("https://%s/api/v1/%s/user/%s/posts", host, service, id)
++        perUnit := 50
++        fetch := func(page int, max_num_posts int) (err error, finish bool) {
++	        k.log.Printf("fetching post list page %d...", page)
++                purl := url
++
++	        if page != 0 {
++		   purl = fmt.Sprintf("%s?o=%d", url, page*perUnit)
++                }
++                k.log.Printf("purl: %s", purl)
++
++                retryCount := 0
++                for retryCount < k.retry {
++		        resp, err := k.Downloader.Get(purl)
++                        if err != nil {
++			        k.log.Printf("fetch post list error1: %v", err)
++			        time.Sleep(k.retryInterval)
++			        retryCount++
++			        continue
++		        }
++
++		        if resp.StatusCode != http.StatusOK {
++			        k.log.Printf("fetch post list error2: %s", resp.Status)
++			        k.log.Printf("resp: %s", resp)
++			        time.Sleep(k.retryInterval)
++			        retryCount++
++			        continue
++		        }
++
++		        reader, err := handleCompressedHTTPResponse(resp)
++		        if err != nil {
++			        return err, false
++		        }
++
++		        data, err := ioutil.ReadAll(reader)
++		        if err != nil {
++			        return fmt.Errorf("fetch post list error3: %s", err), false
++		        }
++		        reader.Close()
++
++		        var pr []PostRaw
++		        err = json.Unmarshal(data, &pr)
++		        if err != nil {
++			        return fmt.Errorf("unmarshal post list error4: %s", err), false
++		        }
++		        for _, p := range pr {
++			        posts = append(posts, p.ParasTime())
++		        }
++		        if len(pr) == 0 || max_num_posts <= (page+1)*perUnit {
++			        // final page
++			        return nil, true
++		        }
++		        return nil, false
++	        }
++
++	        return fmt.Errorf("fetch post list error: maximum retry count exceeded"), false
++        }
++
++        for i := 0; ; i++ {
++	        url := fmt.Sprintf("https://%s/api/v1/%s/user/%s/profile", host, service, id)
++	        resp, err := k.Downloader.Get(url)
++	        if err != nil {
++		        return nil, fmt.Errorf("fetch post list error getting number of posts 1: %s", err)
++	        }
++
++	        if resp.StatusCode != http.StatusOK {
++		        return nil, fmt.Errorf("fetch post list error getting number of posts 2: %s", err)
++	        }
++
++	        reader, err := handleCompressedHTTPResponse(resp)
++	        if err != nil {
++		        return nil, fmt.Errorf("fetch post list error getting number of posts 3: %s", err)
++	        }
++
++	        data, err := ioutil.ReadAll(reader)
++	        if err != nil {
++		        return nil, fmt.Errorf("fetch post list error getting number of posts 4: %s", err)
++	        }
++                reader.Close()
++
++                var jsonresult map[string]any
++                json.Unmarshal(data, &jsonresult)
++                post_count_float, ok := jsonresult["post_count"].(float64)
++                if !ok {
++                        return nil, fmt.Errorf("fetch post list error getting post_count")
++                }
++                max_num_posts := int(post_count_float)
++
++	        err, finish := fetch(i, max_num_posts)
++	        if err != nil {
++		        return nil, err
++	        }
++	        if finish {
++		        break
++	        }
++        }
++        return
+ }
+ 
+ // DownloadPosts download posts
+diff --git a/kemono/kemono.go b/kemono/kemono.go
+index fda74f4..df8f733 100644
+--- a/kemono/kemono.go
++++ b/kemono/kemono.go
+@@ -217,11 +217,11 @@ func WithUserAttachmentFilter(creator Creator, filter ...AttachmentFilter) Optio
+ }
+ 
+ // Start fetch and download
+-func (k *Kemono) Start() error {
++func (k *Kemono) Start(host string) error {
+ 	// initialize the creators
+ 	if len(k.creators) == 0 {
+ 		// fetch creators from kemono
+-		cs, err := k.FetchCreators()
++                cs, err := k.FetchCreators(host)
+ 		if err != nil {
+ 			return err
+ 		}
+@@ -251,11 +251,13 @@ func (k *Kemono) Start() error {
+ 	k.log.Printf("Start download %d creators", len(k.users))
+ 	for _, creator := range k.users {
+ 		// fetch posts
+-		posts, err := k.FetchPosts(creator.Service, creator.Id)
++                k.log.Printf("Fetching posts")
++		posts, err := k.FetchPosts(creator.Service, creator.Id, host)
+ 		if err != nil {
+ 			return err
+ 		}
+ 		// filter posts
++                k.log.Printf("Filter posts")
+ 		posts = k.FilterPosts(posts)
+ 
+ 		// filter attachments
+diff --git a/main/main.go b/main/main.go
+index 9ec093f..3d885f6 100644
+--- a/main/main.go
++++ b/main/main.go
+@@ -483,14 +483,16 @@ func main() {
+ 
+ 	if k {
+ 		terminal.Print("Downloading Kemono")
+-		err := KKemono.Start()
++		kemonoHost := siteHost(Kemono)
++		err := KKemono.Start(kemonoHost)
+ 		if err != nil {
+ 			log.Printf("kemono start failed: %s", err)
+ 		}
+ 	}
+ 	if c {
+ 		terminal.Print("Downloading Coomer")
+-		err := KCoomer.Start()
++		coomerHost := siteHost(Coomer)
++		err := KCoomer.Start(coomerHost)
+ 		if err != nil {
+ 			log.Printf("coomer start failed: %s", err)
+ 		}

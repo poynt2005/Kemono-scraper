@@ -404,7 +404,9 @@ func main() {
 		k = true
 		options[Kemono] = append(options[Kemono], sharedOptions...)
 		options[Kemono] = append(options[Kemono], kemono.WithDomain("kemono"))
-		downloaderOptions = append(downloaderOptions, downloader.BaseURL("https://kemono.cr"))
+
+		kemonoHost := siteHost(Kemono)
+		downloaderOptions = append(downloaderOptions, downloader.BaseURL("https://"+kemonoHost))
 		token, err := utils.GenerateToken(16)
 		if err != nil {
 			log.Fatalf("generate token failed: %s", err)
@@ -414,14 +416,14 @@ func main() {
 				Name:   "__ddg2",
 				Value:  token,
 				Path:   "/",
-				Domain: ".kemono.cr",
+				Domain: "." + kemonoHost,
 				Secure: false,
 			},
 		}))
 		downloaderOptions = append(downloaderOptions, downloader.WithHeader(downloader.Header{
-			"Host":                      "kemono.cr",
+			"Host":                      kemonoHost,
 			"User-Agent":                downloader.UserAgent,
-			"Referer":                   "https://kemono.cr",
+			"Referer":                   "https://" + kemonoHost,
 			"Accept":                    downloader.Accept,
 			"Accept-Language":           downloader.AcceptLanguage,
 			"Accept-Encoding":           downloader.AcceptEncoding,
@@ -442,7 +444,9 @@ func main() {
 		c = true
 		options[Coomer] = append(options[Coomer], sharedOptions...)
 		options[Coomer] = append(options[Coomer], kemono.WithDomain("coomer"))
-		downloaderOptions = append(downloaderOptions, downloader.BaseURL("https://coomer.cr"))
+
+		coomerHost := siteHost(Coomer)
+		downloaderOptions = append(downloaderOptions, downloader.BaseURL("https://"+coomerHost))
 		token, err := utils.GenerateToken(16)
 		if err != nil {
 			log.Fatalf("generate token failed: %s", err)
@@ -452,13 +456,13 @@ func main() {
 				Name:   "__ddg2",
 				Value:  token,
 				Path:   "/",
-				Domain: ".coomer.cr",
+				Domain: "." + coomerHost,
 			},
 		}))
 		downloaderOptions = append(downloaderOptions, downloader.WithHeader(downloader.Header{
-			"Host":                      "coomer.cr",
+			"Host":                      coomerHost,
 			"User-Agent":                downloader.UserAgent,
-			"Referer":                   "https://coomer.cr/",
+			"Referer":                   "https://" + coomerHost + "/",
 			"Accept":                    downloader.Accept,
 			"Accept-Language":           downloader.AcceptLanguage,
 			"Accept-Encoding":           downloader.AcceptEncoding,
@@ -479,14 +483,16 @@ func main() {
 
 	if k {
 		terminal.Print("Downloading Kemono")
-		err := KKemono.Start()
+		kemonoHost := siteHost(Kemono)
+		err := KKemono.Start(kemonoHost)
 		if err != nil {
 			log.Printf("kemono start failed: %s", err)
 		}
 	}
 	if c {
 		terminal.Print("Downloading Coomer")
-		err := KCoomer.Start()
+		coomerHost := siteHost(Coomer)
+		err := KCoomer.Start(coomerHost)
 		if err != nil {
 			log.Printf("coomer start failed: %s", err)
 		}
@@ -499,7 +505,8 @@ func parasLink(link string) (s, service, userId, postId string) {
 		log.Fatal("invalid url")
 	}
 
-	pattern := `(?i)^(?:.*\.)?(kemono|coomer)\.cr$`
+	// Accept kemono/coomer with su/cr/st TLDs (and optional subdomains)
+	pattern := `(?i)^(?:.*\.)?(kemono|coomer)\.(su|cr|st)$`
 	re := regexp.MustCompile(pattern)
 
 	matchedSubstrings := re.FindStringSubmatch(u.Host)
@@ -672,7 +679,8 @@ func DirectoryName(p kemono.Post) string {
 }
 
 func fetchFavoriteCreators(s string, cookie []*http.Cookie) []kemono.FavoriteCreator {
-	log.Printf("fetching favorite creators from %s.cr", s)
+	host := siteHost(s)
+	log.Printf("fetching favorite creators from %s", host)
 	var client *http.Client
 	client = http.DefaultClient
 	if proxy != "" {
@@ -685,11 +693,11 @@ func fetchFavoriteCreators(s string, cookie []*http.Cookie) []kemono.FavoriteCre
 		downloader.AddProxy(proxy, client.Transport.(*http.Transport))
 	}
 
-	req, err := http.NewRequest("GET", fmt.Sprintf("https://%s.cr/api/v1/account/favorites?type=user", s), nil)
+	req, err := http.NewRequest("GET", fmt.Sprintf("https://%s/api/v1/account/favorites?type=user", host), nil)
 	if err != nil {
 		log.Fatalf("Error creating request: %s", err)
 	}
-	req.Header.Set("Host", fmt.Sprintf("%s.cr", s))
+	req.Header.Set("Host", host)
 	for _, v := range cookie {
 		req.AddCookie(v)
 	}
@@ -710,7 +718,8 @@ func fetchFavoriteCreators(s string, cookie []*http.Cookie) []kemono.FavoriteCre
 }
 
 func fetchFavoritePosts(s string, cookie []*http.Cookie) []kemono.PostRaw {
-	log.Printf("fetching favorite posts from %s.cr", s)
+	host := siteHost(s)
+	log.Printf("fetching favorite posts from %s", host)
 	var client *http.Client
 	client = http.DefaultClient
 	if proxy != "" {
@@ -722,11 +731,11 @@ func fetchFavoritePosts(s string, cookie []*http.Cookie) []kemono.PostRaw {
 		}
 		downloader.AddProxy(proxy, client.Transport.(*http.Transport))
 	}
-	req, err := http.NewRequest("GET", fmt.Sprintf("https://%s.cr/api/v1/account/favorites?type=post", s), nil)
+	req, err := http.NewRequest("GET", fmt.Sprintf("https://%s/api/v1/account/favorites?type=post", host), nil)
 	if err != nil {
 		log.Fatalf("Error creating request: %s", err)
 	}
-	req.Header.Set("Host", fmt.Sprintf("%s.cr", s))
+	req.Header.Set("Host", host)
 	for _, v := range cookie {
 		req.AddCookie(v)
 	}
@@ -795,4 +804,18 @@ func parasCookieFile(cookieFile string) []*http.Cookie {
 		site = domain
 	}
 	return cookies
+}
+
+// siteHost resolves the canonical host for a given site identifier ("kemono" or "coomer").
+// Updated to support kemono.cr and coomer.st.
+func siteHost(s string) string {
+	switch strings.ToLower(s) {
+	case Kemono:
+		return "kemono.cr"
+	case Coomer:
+		return "coomer.st"
+	default:
+		// Fallback: if a full host was passed in, return as-is.
+		return s
+	}
 }
